@@ -17,12 +17,14 @@ noinst_HEADERS = \
 	nccl_ofi_log.h \
 	nccl_ofi_freelist.h \
 	nccl_ofi_param.h \
+	nccl_ofi_tuner.h \
 	nccl_ofi_math.h \
 	nccl_ofi_memcheck.h \
 	nccl_ofi_memcheck_nop.h \
 	tracepoint.h \
 	nccl-headers/net.h \
 	nccl-headers/error.h \
+	nccl-headers/tuner.h \
 	nccl-headers/nvidia/net.h \
 	nccl-headers/nvidia/err.h \
 	nccl-headers/nvidia/net_v2.h \
