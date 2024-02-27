@@ -5692,6 +5692,7 @@ static int get_ep(nccl_net_ofi_device_t *base_dev,
  */
 static int init_device_rail_ofi_resources(nccl_net_ofi_rdma_device_rail_t *rail_dev)
 {
+	struct fi_eq_attr eq_attr = {0};
 	int ret = 0;
 
 	/* Create fabric */
@@ -5713,8 +5714,22 @@ static int init_device_rail_ofi_resources(nccl_net_ofi_rdma_device_rail_t *rail_
 		goto error;
 	}
 
+	/* Create event queue */
+	eq_attr.flags |= FI_WAIT_NONE;
+	ret = fi_eq_open(rail_dev->fabric, &eq_attr, &rail_dev->eq, NULL);
+	if (OFI_UNLIKELY(ret != 0)) {
+		NCCL_OFI_WARN("Couldn't open an event queue: %d, ERROR: %s",
+			      ret, fi_strerror(-ret));
+		ret = ncclSystemError;
+		goto error;
+	}
+
 	return ret;
  error:
+	if (rail_dev->eq) {
+		fi_close((fid_t)rail_dev->eq);
+		rail_dev->eq = NULL;
+	}
 	if (rail_dev->domain) {
 		fi_close((fid_t)rail_dev->domain);
 		rail_dev->domain = NULL;
@@ -5765,6 +5780,34 @@ static int calculate_num_comm_ids(nccl_net_ofi_rdma_device_t *device)
 	return ret;
 }
 
+
+static void* device_poll_and_log_eq(void *arg)
+{
+	nccl_net_ofi_rdma_device_t *device = (nccl_net_ofi_rdma_device_t*) arg;
+	nccl_net_ofi_rdma_device_rail_t *begin = device->device_rails;
+	nccl_net_ofi_rdma_device_rail_t *end = device->device_rails + device->num_rails;
+	struct fi_eq_err_entry eq_err_entry = {0};
+	ssize_t ret;
+
+	while(1) {
+		for (; begin != end; ++begin) {
+			ret = fi_eq_readerr(begin->eq, &eq_err_entry, 0);
+			if (ret != sizeof(eq_err_entry)) {
+				if (ret != -FI_EAGAIN)
+					NCCL_OFI_WARN("fi_eq_read failed: %s", fi_strerror(-ret));
+				continue;
+			}
+
+			NCCL_OFI_WARN("Got async error event from libfabric: %d (%s)",
+					fi_strerror(eq_err_entry.err),
+					fi_eq_strerror(begin->eq, eq_err_entry.prov_errno,
+					               eq_err_entry.err_data, NULL, 0));
+		}
+	}
+
+	return NULL;
+}
+
 /*
  * @brief	Allocates and initializes various libfabric resources to make rdma
  *		device ready for endpoint creation.
@@ -5786,6 +5829,16 @@ static int device_prepare_for_connection(nccl_net_ofi_rdma_device_t *device)
 			return ret;
 		}
 	}
+
+	/*
+	 * Spawn off a thread to do nothing but catch and print asynchronous
+	 * events from the device as they can not be tied to a specific NCCL
+	 * request. There are certain cases where we would fail a
+	 * NCCL request if we implicitly have a libfabric control operation in
+	 * the request's path but that does not capture events the libfabric
+	 * provider itself sends up through an EQ entry.
+	 */
+	pthread_create(&device->eq_poll_thread, NULL, device_poll_and_log_eq, (void*)device);
 
 	return 0;
 }
@@ -5820,6 +5873,7 @@ static void release_device_ofi_resources(nccl_net_ofi_rdma_device_t *device)
 
 	for (; begin != end; ++begin) {
 		if (begin->info) fi_freeinfo(begin->info);
+		if (begin->eq) fi_close(&begin->eq->fid);
 		if (begin->fabric) fi_close(&begin->fabric->fid);
 		if (begin->domain) fi_close(&begin->domain->fid);
 	}

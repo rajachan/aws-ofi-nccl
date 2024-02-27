@@ -567,6 +567,10 @@ typedef struct nccl_net_ofi_rdma_device_rail {
 
 	/* Access domain handles */
 	struct fid_domain *domain;
+
+	/* Asynchronous event queue for fabric and domain level events */
+	struct fid_eq *eq;
+
 } nccl_net_ofi_rdma_device_rail_t;
 
 /*
@@ -627,6 +631,9 @@ typedef struct nccl_net_ofi_rdma_device {
 
 	/* Memory registration key pool */
 	nccl_ofi_idpool_t key_pool;
+
+	/* Thread to poll for libfabric EQ entries and log it */
+	pthread_t eq_poll_thread;
 } nccl_net_ofi_rdma_device_t;
 
 /*
