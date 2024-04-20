@@ -73,14 +73,20 @@ jobs:
             ./configure --with-libfabric=$PWD/libfabric/install \
                         --with-cuda=/usr/local/cuda/ \
                         --enable-platform-aws \
+                        CFLAGS="-fprofile-arcs -ftest-coverage" \
                         CC=${{ matrix.cc }}
           else
             ./configure --with-libfabric=$PWD/libfabric/install \
                         --enable-neuron \
                         --enable-platform-aws \
+                        CFLAGS="-fprofile-arcs -ftest-coverage" \
                         CC=${{ matrix.cc }}
           fi
           make -j $(nproc)
+          make check
+
+      - name: Generate a code coverage report
+        uses: threeal/gcovr-action@v1.0.0
 
       - name: Run Dist Check
         run: make distcheck
