@@ -100,7 +100,7 @@ AC_ARG_ENABLE([tests],
 AS_IF([test "${enable_tests}" != "no" -a "${enable_neuron}" = "yes"],
       [AC_MSG_WARN([Disabling tests due to Neuron configuration.])
        enable_tests=no],
-      [test "${enable_tests}" = "yes" -a "${found_mpi}" = "no"],
+      [test "${enable_tests}" != "no" -a "${found_mpi}" = "no"],
       [AC_MSG_ERROR([Tests requested, but MPI not found.  Aborting.])],
       [test "${found_mpi}" = "no"],
       [AC_MSG_WARN([Disabling tests due to no MPI.])
