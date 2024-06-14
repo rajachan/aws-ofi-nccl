@@ -7,7 +7,8 @@
 
 #include "nccl_ofi.h"
 #include "nccl_ofi_api.h"
-
+#include "nccl_ofi_mr.h"
+#include "nccl_ofi_pthread.h"
 
 _Static_assert(sizeof(nccl_net_ofi_conn_handle_t) <= NCCL_NET_HANDLE_MAXSIZE,
 	       "Size of OFI Handle is too large");
@@ -284,6 +285,8 @@ ncclResult_t nccl_net_ofi_regMr_v7(void *comm, void *data, int size, int type,
 ncclResult_t nccl_net_ofi_regMr(void *comm, void *data, size_t size, int type,
 				void **mhandle)
 {
+	nccl_net_ofi_device_t *dev;
+	nccl_ofi_mr_cache_t *cache;
 	int ret = 0;
 
 	/* Retrieve and validate comm */
@@ -308,22 +311,11 @@ ncclResult_t nccl_net_ofi_regMr(void *comm, void *data, size_t size, int type,
 		return ncclInternalError;
 	}
 
-	switch (base_comm->type) {
-	case NCCL_NET_OFI_SEND_COMM:;
-		nccl_net_ofi_send_comm_t *send_comm =
-			(nccl_net_ofi_send_comm_t *)base_comm;
-		ret = send_comm->regMr(send_comm, data, size, type, mhandle);
-		break;
-	case NCCL_NET_OFI_RECV_COMM:;
-		nccl_net_ofi_recv_comm_t *recv_comm =
-			(nccl_net_ofi_recv_comm_t *)base_comm;
-		ret = recv_comm->regMr(recv_comm, data, size, type, mhandle);
-		break;
-	default:
-		NCCL_OFI_WARN("Unexpected communicator type. Communicator type: %d",
-			      base_comm->type);
-		ret = -EINVAL;
-		break;
+	dev = base_comm->ep->device;
+	cache = dev->mr_cache;
+	ret = nccl_ofi_mr_cache_add_entry(cache, data, size, type, mhandle);
+	if (ret < 0) {
+		NCCL_OFI_WARN("Failed to register memory");
 	}
 
 	return nccl_net_ofi_retval_translate(ret);
@@ -331,6 +323,10 @@ ncclResult_t nccl_net_ofi_regMr(void *comm, void *data, size_t size, int type,
 
 ncclResult_t nccl_net_ofi_deregMr(void *comm, void *mhandle)
 {
+	nccl_net_ofi_device_t *dev;
+	nccl_ofi_mr_cache_t *cache;
+	int ret = 0;
+
 	/* Retrieve and validate comm */
 	nccl_net_ofi_comm_t *base_comm =
 		(nccl_net_ofi_comm_t *)comm;
@@ -338,27 +334,18 @@ ncclResult_t nccl_net_ofi_deregMr(void *comm, void *mhandle)
 		NCCL_OFI_WARN("Invalid comm object provided");
 		return ncclInternalError;
 	}
+	dev = base_comm->ep->device;
+	cache = dev->mr_cache;
 
-	int ret = 0;
-
-	switch (base_comm->type) {
-	case NCCL_NET_OFI_SEND_COMM:;
-		nccl_net_ofi_send_comm_t *send_comm =
-			(nccl_net_ofi_send_comm_t *)base_comm;
-		ret = send_comm->deregMr(send_comm, mhandle);
-		break;
-	case NCCL_NET_OFI_RECV_COMM:;
-		nccl_net_ofi_recv_comm_t *recv_comm =
-			(nccl_net_ofi_recv_comm_t *)base_comm;
-		ret = recv_comm->deregMr(recv_comm, mhandle);
-		break;
-	default:
-		NCCL_OFI_WARN("Unexpected communicator type. Communicator type: %d",
-			      base_comm->type);
-		ret = -EINVAL;
-		break;
+	/*
+	 * Depending on the number of references on this handle and the cache
+	 * itself, this call would either just deref the handle, delete the
+	 * entry for this handle, or teardown the entire cache. 
+	 */
+	ret = nccl_ofi_mr_cache_del_entry(cache, mhandle);
+	if (ret < 0) {
+		NCCL_OFI_WARN("Failed to dereg memory");
 	}
-
 	return nccl_net_ofi_retval_translate(ret);
 }
 
