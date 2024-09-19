@@ -1,5 +1,31 @@
 name: PR CI
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+      - main
+      - v*
+    paths:
+      - "configure.ac"
+      - "Makefile.am"
+      - "autogen.sh"
+      - "include/**"
+      - "m4/**"
+      - "src/**"
+      - "tests/**"
+      - "topology/**"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - "configure.ac"
+      - "Makefile.am"
+      - "autogen.sh"
+      - "include/**"
+      - "m4/**"
+      - "src/**"
+      - "tests/**"
+      - "topology/**"
+      - ".github/workflows/**"
 env:
   APT_PACKAGES: >-
     build-essential
@@ -21,28 +47,31 @@ jobs:
       matrix:
         sdk:
           - cuda
-        amazonlinux:
-          - al2023
-          - al2
+        container:
+          - amazonlinux:2023
+          - amazonlinux:2
         efainstaller:
           - latest
           - 1.25.0
         include:
-          - amazonlinux: al2023
+          - container: amazonlinux:2023
             efainstallerdir: ALINUX2023
-            nvidiadistro: fedora37
+            nvidiadistro: amzn2023
             configmanager: dnf config-manager
-            cudapackages: cuda-cudart-devel-12-3 cuda-driver-devel-12-3
+            cudapackages: cuda-cudart-devel-12-5 cuda-driver-devel-12-5
 
-          - amazonlinux: al2
+          - container: amazonlinux:2
             efainstallerdir: ALINUX2
             nvidiadistro: rhel7
             configmanager: yum-config-manager
-            cudapackages: cuda-cudart-devel-12-3 cuda-driver-devel-12-3
+            cudapackages: cuda-cudart-devel-12-4 cuda-driver-devel-12-4
 
-    runs-on: codebuild-ghactions-${{ matrix.amazonlinux }}-${{ github.run_id }}-${{ github.run_attempt }}
-    name: ${{matrix.amazonlinux}}/${{ matrix.sdk }}/efa@${{ matrix.efainstaller }}/makeinstall
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    name: ${{matrix.container}}/${{ matrix.sdk }}/efa@${{ matrix.efainstaller }}/makeinstall
     steps:
+      - run: |
+          yum -y update && yum -y install git tar util-linux findutils yum-utils
       # note, do not bump to v4: https://github.com/actions/checkout/issues/1590
       - uses: actions/checkout@v3
       - name: Fetch and Install EFA Installer Dependencies
@@ -50,20 +79,21 @@ jobs:
           curl -O https://efa-installer.amazonaws.com/aws-efa-installer-${{ matrix.efainstaller }}.tar.gz
           tar -xf aws-efa-installer-*.tar.gz
           cd aws-efa-installer/RPMS/${{ matrix.efainstallerdir }}/x86_64
-          find . | grep rpm$ | xargs sudo yum -y localinstall
+          find . | grep rpm$ | xargs yum -y localinstall
       - name: Install hwloc, utilities.
         run: |
-          sudo yum -y install hwloc-devel yum-utils
+          yum -y install hwloc-devel autoconf automake libtool gcc g++ git make
       - name: Install CUDA
         run: |
-          sudo ${{ matrix.configmanager }} --add-repo \
+          ${{ matrix.configmanager }} --add-repo \
              http://developer.download.nvidia.com/compute/cuda/repos/${{ matrix.nvidiadistro }}/x86_64/cuda-${{ matrix.nvidiadistro }}.repo \
              --save
-          sudo yum -y clean expire-cache
-          sudo yum -y install ${{ matrix.cudapackages }}
+          yum -y clean expire-cache
+          yum -y install ${{ matrix.cudapackages }}
 
       - name: Call `autoreconf -ivf`
-        run: ./autogen.sh
+        run: |
+          ./autogen.sh
 
       - name: Call `./configure`
         run: |
@@ -77,7 +107,7 @@ jobs:
         run: make -j
 
       - name: Call `make install`
-        run: sudo make install
+        run: make install
 
   distcheck:
     runs-on: ubuntu-22.04
@@ -99,7 +129,7 @@ jobs:
         include:
           - cc-variant: latest
             cc: clang
-            cc-version: 19
+            cc-version: 18
           - cc-variant: latest
             cc: gcc
             cc-version: 13
@@ -135,38 +165,29 @@ jobs:
           fi
 
       - name: Install Latest Compiler
-        uses: awalsh128/cache-apt-pkgs-action@latest
         if: matrix.cc-variant == 'latest'
-        with:
-          packages: ${{ matrix.cc }}-${{matrix.cc-version}}
-          version: compiler-${{ matrix.cc }}-${{matrix.cc-version}}
+        run: |
+          sudo apt-get install -y ${{ matrix.cc }}-${{matrix.cc-version}}
 
       - name: Install Base Dependencies
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: ${{ env.APT_PACKAGES }}
-          version: base-packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ${{ env.APT_PACKAGES }}
 
       - name: Install CUDA SDK
         if: matrix.sdk == 'cuda'
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: nvidia-cuda-toolkit
-          version: cuda-packages
+        run: |
+          sudo apt-get install -y nvidia-cuda-toolkit
 
       - name: Install Neuron SDK
         if: matrix.sdk == 'neuron'
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: aws-neuronx-runtime-lib
-          version: neuron-packages
+        run: |
+          sudo apt-get install -y aws-neuronx-runtime-lib
 
       - name: Install lttng
-        uses: awalsh128/cache-apt-pkgs-action@latest
         if: matrix.tracing == 'lttng'
-        with:
-          packages: liblttng-ust-dev
-          version: lttng
+        run: |
+          sudo apt-get install -y liblttng-ust-dev
 
       - name: Fetch and Install EFA Installer Dependencies
         run: |
@@ -226,7 +247,7 @@ jobs:
         include:
           - cc-variant: latest
             cc: clang
-            cc-version: 19
+            cc-version: 18
           - cc-variant: latest
             cc: gcc
             cc-version: 13
@@ -262,31 +283,24 @@ jobs:
           fi
 
       - name: Install Latest Compiler
-        uses: awalsh128/cache-apt-pkgs-action@latest
         if: matrix.cc-variant == 'latest'
-        with:
-          packages: ${{ matrix.cc }}-${{matrix.cc-version}}
-          version: compiler-${{ matrix.cc }}-${{matrix.cc-version}}
+        run: |
+          sudo apt-get install -y ${{ matrix.cc }}-${{matrix.cc-version}}
 
       - name: Install Base Dependencies
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: ${{ env.APT_PACKAGES }}
-          version: base-packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ${{ env.APT_PACKAGES }}
 
       - name: Install CUDA SDK
         if: matrix.sdk == 'cuda'
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: nvidia-cuda-toolkit
-          version: cuda-packages
+        run: |
+          sudo apt-get install -y nvidia-cuda-toolkit
 
       - name: Install Neuron SDK
         if: matrix.sdk == 'neuron'
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: aws-neuronx-runtime-lib
-          version: neuron-packages
+        run: |
+          sudo apt-get install -y aws-neuronx-runtime-lib
 
       - name: Fetch and Install EFA Installer Dependencies
         run: |
@@ -358,30 +372,23 @@ jobs:
           sudo apt update -y
 
       - name: Install Base Dependencies
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: ${{ env.APT_PACKAGES }}
-          version: base-packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ${{ env.APT_PACKAGES }}
 
       - name: Install CUDA SDK
         if: matrix.sdk == 'cuda'
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: nvidia-cuda-toolkit
-          version: cuda-packages
+        run: |
+          sudo apt-get install -y nvidia-cuda-toolkit
 
       - name: Install Neuron SDK
         if: matrix.sdk == 'neuron'
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: aws-neuronx-runtime-lib
-          version: neuron-packages
+        run: |
+          sudo apt-get install -y aws-neuronx-runtime-lib
 
       - name: Install cppcheck
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: cppcheck
-          version: codechecker-cppcheck
+        run: |
+          sudo apt-get install -y cppcheck
 
       - name: Fetch and Install EFA Installer Dependencies
         run: |

@@ -6,12 +6,13 @@
 #ifndef NET_OFI_API_H_
 #define NET_OFI_API_H_
 
-#include "nccl-headers/net.h"
-#include "nccl-headers/error.h"
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "nccl-headers/net.h"
+#include "nccl-headers/error.h"
 
 struct nccl_ofi_properties;
 
@@ -41,8 +42,15 @@ ncclResult_t nccl_net_ofi_iflush_v4(void* recvComm, void* data, int size, void* 
 ncclResult_t nccl_net_ofi_closeSend(void *sendComm);
 ncclResult_t nccl_net_ofi_closeRecv(void *recvComm);
 ncclResult_t nccl_net_ofi_closeListen(void *listenComm);
+ncclResult_t nccl_net_ofi_get_mr_key(void* mhandle, uint64_t* mr_key);
+ncclResult_t nccl_net_ofi_iwrite(void* sComm, void* src, size_t size, void* mhandle,
+				 uint64_t dest, uint64_t mr_key, void** req);
+ncclResult_t nccl_net_ofi_iwrite_inline(void* sComm, void* src, size_t size,
+					uint64_t dest, uint64_t mr_key, void** req);
+ncclResult_t nccl_net_ofi_iread(void* rComm, void* dest, size_t size, void* mhandle,
+				uint64_t src, uint64_t mr_key, void** req);
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 }
 #endif // End extern "C"
 

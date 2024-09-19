@@ -269,7 +269,7 @@ ncclResult_t nccl_ofi_tuner_init(size_t nRanks, size_t nNodes, ncclDebugLogger_t
 				      {9999360, 64},
 				      {2367488, 16},
 				      {0, 16}}},
-			{.algorithm = NCCL_ALGO_NVLS_TREE,
+			{.algorithm = NCCL_ALGO_RING,
 			 .protocol = NCCL_PROTO_SIMPLE,
 			 .num_vertices = 4,
 			 .vertices = {{4736000, 2}, {TUNER_MAX_SIZE, 2}, extended_ring_ll128, {269484032, 128}}}};
@@ -291,7 +291,7 @@ exit:
 	*context = (void *)nccl_ofi_tuner_ctx;
 	nccl_net_ofi_mutex_unlock(&nccl_ofi_tuner_ctx_lock);
 
-	NCCL_OFI_TRACE(NCCL_TUNING, "Tuner init: comm with %ld ranks and %ld nodes.", nRanks, nNodes);
+	NCCL_OFI_INFO(NCCL_INIT | NCCL_TUNING, "Tuner init: comm with %ld ranks and %ld nodes.", nRanks, nNodes);
 	return ret;
 }
 

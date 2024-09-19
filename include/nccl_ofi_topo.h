@@ -5,7 +5,7 @@
 #ifndef NCCL_NET_OFI_TOPO_H_
 #define NCCL_NET_OFI_TOPO_H_
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -133,6 +133,8 @@ void nccl_ofi_topo_free(nccl_ofi_topo_t *topo);
  * 3. For each topology node with a libfabric NIC info list in its
  * user data, search towards the root for a node with 'num_groups' > 0.
  * If such a node has been found, move the list to that node.
+ * If no said node is found, keep list stored in original node and set
+ * `num_groups` to one.
  * 4. For each topology node with a libfabric NIC info list and 'num_groups > 0',
  * split the list into 'num_groups' sub-lists (groups) and add the
  * groups to the topology nodes corresponding to their leaders (first
@@ -313,7 +315,7 @@ struct fi_info *nccl_ofi_topo_next_info_list(nccl_ofi_topo_data_iterator_t *iter
  */
 int nccl_ofi_topo_write_nccl_topology(nccl_ofi_topo_t *topo, FILE *file);
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 }
 #endif
 

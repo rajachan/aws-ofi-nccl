@@ -11,6 +11,10 @@
 
 #define NCCL_OFI_EXPORT_SYMBOL __attribute__((visibility("default")))
 
+#ifndef __cplusplus
+#define static_assert _Static_assert
+#endif
+
 /* Maximum length of directory path */
 #ifdef HAVE_LINUX_LIMITS_H
 #include <linux/limits.h>
@@ -19,6 +23,13 @@
 #ifndef PATH_MAX
 #define PATH_MAX	4096
 #endif
+
+/* Copied from libfabric:rdma/fabric.h@30ec628: "libfabric: Initial commit" */
+#ifndef container_of
+#define container_of(ptr, type, field) \
+	((type *) ((char *)ptr - offsetof(type, field)))
+#endif
+/* end of copied libfabric macros */
 
 /* Workaround for platforms without memfd_create */
 #ifndef HAVE_MEMFD_CREATE

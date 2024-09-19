@@ -5,7 +5,7 @@
 #ifndef NCCL_OFI_MEMCHECK_H
 #define NCCL_OFI_MEMCHECK_H
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -29,7 +29,7 @@ extern "C" {
  * MEMCHECK_REDZONE_SIZE defines the size of redzones prefixing each
  * entry. Redzones are required to be a multiple of 8 due to ASAN
  * shadow-map granularity */
-_Static_assert(MEMCHECK_REDZONE_SIZE % MEMCHECK_GRANULARITY == 0,
+static_assert(MEMCHECK_REDZONE_SIZE % MEMCHECK_GRANULARITY == 0,
 	       "Size of redzone is not a multiple of ASAN shadow-map granularity");
 
 /**
@@ -85,9 +85,9 @@ static inline void nccl_net_ofi_mem_noaccess(void *data, size_t size);
  */
 static inline void nccl_net_ofi_mem_defined_unaligned(void *data, size_t size)
 {
-	void *aligned = (void *)NCCL_OFI_ROUND_DOWN((uintptr_t)data, MEMCHECK_GRANULARITY);
-	size_t offset = data - aligned;
-	nccl_net_ofi_mem_defined(data - offset, size + offset);
+	uintptr_t aligned = NCCL_OFI_ROUND_DOWN((uintptr_t)data, MEMCHECK_GRANULARITY);
+	size_t offset = (uintptr_t)data - aligned;
+	nccl_net_ofi_mem_defined((void*)((uintptr_t)data - offset), size + offset);
 }
 
 /**
@@ -96,9 +96,9 @@ static inline void nccl_net_ofi_mem_defined_unaligned(void *data, size_t size)
  */
 static inline void nccl_net_ofi_mem_undefined_unaligned(void *data, size_t size)
 {
-	void *aligned = (void *)NCCL_OFI_ROUND_DOWN((uintptr_t)data, MEMCHECK_GRANULARITY);
-	size_t offset = data - aligned;
-	nccl_net_ofi_mem_undefined(data - offset, size + offset);
+	uintptr_t aligned = NCCL_OFI_ROUND_DOWN((uintptr_t)data, MEMCHECK_GRANULARITY);
+	size_t offset = (uintptr_t)data - aligned;
+	nccl_net_ofi_mem_undefined((void*)((uintptr_t)data - offset), size + offset);
 }
 
 /**
@@ -107,9 +107,9 @@ static inline void nccl_net_ofi_mem_undefined_unaligned(void *data, size_t size)
  */
 static inline void nccl_net_ofi_mem_noaccess_unaligned(void *data, size_t size)
 {
-	void *aligned = (void *)NCCL_OFI_ROUND_DOWN((uintptr_t)data, MEMCHECK_GRANULARITY);
-	size_t offset = data - aligned;
-	nccl_net_ofi_mem_noaccess(data - offset, size + offset);
+	uintptr_t aligned = NCCL_OFI_ROUND_DOWN((uintptr_t)data, MEMCHECK_GRANULARITY);
+	size_t offset = (uintptr_t)data - aligned;
+	nccl_net_ofi_mem_noaccess((void*)((uintptr_t)data - offset), size + offset);
 }
 
 /**
@@ -169,7 +169,7 @@ static inline void nccl_net_ofi_mem_mempool_alloc(void *handle, void *data, size
  */
 static inline void nccl_net_ofi_mem_mempool_free(void *handle, void *data, size_t size);
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 } // End extern "C"
 #endif
 

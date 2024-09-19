@@ -53,6 +53,9 @@ static inline int get_properties(nccl_net_ofi_device_t *base_dev,
 		props->max_communicators = NCCL_OFI_MIN(device->max_tag, INT_MAX);
 	}
 
+	props->rma_supported = 0;
+	props->max_write_inline_size = info->tx_attr->inject_size;
+
 	/**
 	 * TODO:
 	 * The SENDRECV protocol currently does not correctly handle the truncated
@@ -740,7 +743,7 @@ static int dereg_mr_base_comm(struct fid_mr *mr_handle,
 		} else {
 			ret = nccl_ofi_idpool_free_id(key_pool, key);
 			if (OFI_UNLIKELY(ret != 0)) {
-				NCCL_OFI_WARN("Error freeing MR key %"PRIu64", leaking key", key);
+				NCCL_OFI_WARN("Error freeing MR key %" PRIu64 ", leaking key", key);
 			}
 		}
 	}
@@ -1036,6 +1039,8 @@ static int recv_close(nccl_net_ofi_recv_comm_t *recv_comm)
 
 	nccl_ofi_freelist_fini(r_comm->nccl_ofi_reqs_fl);
 	free(recv_comm);
+
+	ret = base_ep->release_ep(base_ep);
  exit:
 	return ret;
 }
@@ -1310,6 +1315,7 @@ static nccl_net_ofi_sendrecv_recv_comm_t *prepare_recv_comm(nccl_net_ofi_sendrec
 	r_comm->base.recv = recv;
 	r_comm->base.flush = flush;
 	r_comm->base.close = recv_close;
+	r_comm->base.read = NULL;
 	r_comm->tag = l_comm->tag;
 	r_comm->local_ep = l_comm->local_ep;
 	r_comm->local_ep_addr = l_comm->local_ep_addr;
@@ -1808,6 +1814,8 @@ static int send_close(nccl_net_ofi_send_comm_t *send_comm)
 	nccl_ofi_freelist_fini(s_comm->nccl_ofi_reqs_fl);
 	free(s_comm->conn_info);
 	free(send_comm);
+
+	ret = base_ep->release_ep(base_ep);
  exit:
 	return ret;
 }
@@ -1881,6 +1889,8 @@ static inline int create_send_comm(nccl_net_ofi_conn_handle_t *handle,
 	ret_s_comm->base.deregMr = dereg_mr_send_comm;
 	ret_s_comm->base.send = send;
 	ret_s_comm->base.close = send_close;
+	ret_s_comm->base.write = NULL;
+	ret_s_comm->base.write_inline = NULL;
 	ret_s_comm->tag = tag;
 	ret_s_comm->local_ep = ep->ofi_ep;
 	ret_s_comm->remote_ep = remote_addr;
@@ -2407,6 +2417,7 @@ nccl_net_ofi_sendrecv_device_create(nccl_net_ofi_plugin_t *plugin,
 	device->base.get_properties = get_properties;
 	device->base.get_ep = get_ep;
 	device->base.release = nccl_net_ofi_sendrecv_device_release;
+	device->base.get_mr_key = NULL;
 
 	/* at this point, we can safely call the destructor to clean
 	 * up */
