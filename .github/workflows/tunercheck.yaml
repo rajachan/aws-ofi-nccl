@@ -15,32 +15,72 @@ jobs:
     strategy:
       matrix:
         platform: [p5en.48xlarge, p5.48xlarge]
-      # Add fail-fast: false to continue with other platforms if one fails
       fail-fast: false
 
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Cache Dependencies
+      # Cache APT packages
+      - name: Cache APT packages
+        id: cache-apt
+        uses: actions/cache@v3
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+          key: apt-${{ runner.os }}-${{ hashFiles('**/workflow.yml') }}
+
+      # Cache CUDA installation
+      - name: Cache CUDA
+        id: cache-cuda
         uses: actions/cache@v3
         with:
           path: |
             /usr/local/cuda
-            /opt/amazon
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/configure.ac') }}
+          key: cuda-${{ runner.os }}-${{ hashFiles('**/cuda-keyring_1.1-1_all.deb') }}
 
-      - name: Install System Dependencies
-        if: steps.cache-deps.outputs.cache-hit != 'true'
+      # Cache EFA installation
+      - name: Cache EFA
+        id: cache-efa
+        uses: actions/cache@v3
+        with:
+          path: |
+            /opt/amazon
+          key: efa-${{ runner.os }}-${{ hashFiles('**/aws-efa-installer-latest.tar.gz') }}
+
+      # Cache pip packages
+      - name: Cache pip packages
+        id: cache-pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt', '**/setup.py') }}
+
+      - name: Setup APT
         run: |
           sudo apt-key del 7fa2af80
           wget ${{ env.CUDA_KEYRING_URL }}
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
+
+      - name: Install System Dependencies
+        run: |
+          # Only download without installing if we have cache
+          if [ "${{ steps.cache-apt.outputs.cache-hit }}" = "true" ]; then
+            sudo apt-get install -y --download-only cuda-toolkit libhwloc-dev
+          else
+            sudo apt-get install -y cuda-toolkit libhwloc-dev
+          fi
+          
+          # Install from cache if available
           sudo apt-get install -y cuda-toolkit libhwloc-dev
+
+      - name: Install Python Dependencies
+        run: |
           pip install uv
 
       - name: Install EFA
-        if: steps.cache-deps.outputs.cache-hit != 'true'
+        if: steps.cache-efa.outputs.cache-hit != 'true'
         run: |
           curl -O ${{ env.EFA_INSTALLER_URL }}
           tar -xf aws-efa-installer-*.tar.gz
