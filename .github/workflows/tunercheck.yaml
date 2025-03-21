@@ -20,15 +20,25 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      # Cache APT packages
+      # Create directory for APT cache
+      - name: Create APT cache directory
+        run: |
+          sudo mkdir -p /tmp/apt-cache
+          sudo chmod 777 /tmp/apt-cache
+
+      # Cache APT packages in a user-accessible location
       - name: Cache APT packages
         id: cache-apt
         uses: actions/cache@v3
         with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
+          path: /tmp/apt-cache
           key: apt-${{ runner.os }}-${{ hashFiles('**/workflow.yml') }}
+
+      # Restore APT cache if it exists
+      - name: Restore APT cache
+        if: steps.cache-apt.outputs.cache-hit == 'true'
+        run: |
+          sudo cp -R /tmp/apt-cache/* /var/cache/apt/archives/
 
       # Cache CUDA installation
       - name: Cache CUDA
@@ -65,15 +75,9 @@ jobs:
 
       - name: Install System Dependencies
         run: |
-          # Only download without installing if we have cache
-          if [ "${{ steps.cache-apt.outputs.cache-hit }}" = "true" ]; then
-            sudo apt-get install -y --download-only cuda-toolkit libhwloc-dev
-          else
-            sudo apt-get install -y cuda-toolkit libhwloc-dev
-          fi
-          
-          # Install from cache if available
           sudo apt-get install -y cuda-toolkit libhwloc-dev
+          # Save the package cache for future runs
+          sudo cp -R /var/cache/apt/archives/*.deb /tmp/apt-cache/ || true
 
       - name: Install Python Dependencies
         run: |
