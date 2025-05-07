@@ -6,6 +6,11 @@ on:
       - release/**
       - v**
 
+env:
+  # For caching APT packages
+  APT_CACHE_RESTORE_KEYS: |
+    apt-cache-ubuntu-makedist
+
 jobs:
   amazonlinux:
     strategy:
@@ -29,27 +34,77 @@ jobs:
     container: ${{ matrix.container }}
     name: make dist for tag ${{ github.ref_name }}
     steps:
+      - name: Setup YUM Cache
+        uses: actions/cache@v3
+        id: yum-cache
+        with:
+          path: /var/cache/yum
+          key: yum-cache-ubuntu-${{ hashFiles('**/workflows/tag-makedist.yaml') }}
+          restore-keys: |
+            yum-cache-ubuntu-
+      
       - run: |
-          yum -y update && yum -y install git tar util-linux findutils yum-utils
+          # Configure YUM to keep cache
+          echo 'keepcache=1' | tee -a /etc/yum.conf
+          # Add retry logic
+          for i in {1..3}; do
+            if yum -y update && yum -y install git tar util-linux findutils yum-utils; then
+              break
+            fi
+            echo "Retrying yum in 10 seconds..."
+            sleep 10
+          done
       - uses: actions/checkout@v4
       - name: Fetch and Install EFA Installer Dependencies
         run: |
-          curl -O https://efa-installer.amazonaws.com/aws-efa-installer-${{ matrix.efainstaller }}.tar.gz
+          # Add retry logic for curl
+          for i in {1..3}; do
+            if curl -O https://efa-installer.amazonaws.com/aws-efa-installer-${{ matrix.efainstaller }}.tar.gz; then
+              break
+            fi
+            echo "Retrying curl in 10 seconds..."
+            sleep 10
+          done
           tar -xf aws-efa-installer-*.tar.gz
+          # Install EFA RPMs from local directory to avoid network issues
           ( cd aws-efa-installer/RPMS/${{ matrix.efainstallerdir }}/x86_64 ; find . | grep rpm$ | xargs yum -y localinstall )
           rm -rf aws-efa-installer*
 
       - name: Install hwloc, utilities.
         run: |
-          yum -y install hwloc-devel autoconf automake libtool gcc gcc-c++ git make
+          # Add retry logic for package installation
+          for i in {1..3}; do
+            if yum -y install hwloc-devel autoconf automake libtool gcc gcc-c++ git make; then
+              break
+            fi
+            echo "Retrying yum in 10 seconds..."
+            sleep 10
+          done
 
       - name: Install CUDA
         run: |
-          ${{ matrix.configmanager }} --add-repo \
-             http://developer.download.nvidia.com/compute/cuda/repos/${{ matrix.nvidiadistro }}/x86_64/cuda-${{ matrix.nvidiadistro }}.repo \
-             --save
+          # Add retry logic for repo config
+          for i in {1..3}; do
+            if ${{ matrix.configmanager }} --add-repo \
+               http://developer.download.nvidia.com/compute/cuda/repos/${{ matrix.nvidiadistro }}/x86_64/cuda-${{ matrix.nvidiadistro }}.repo \
+               --save; then
+              break
+            fi
+            echo "Retrying repo add in 10 seconds..."
+            sleep 10
+          done
+          
+          # Clean and refresh cache
           yum -y clean expire-cache
-          yum -y install ${{ matrix.cudapackages }}
+          
+          # Add retry logic for package installation
+          for i in {1..3}; do
+            if yum -y install ${{ matrix.cudapackages }}; then
+              break
+            fi
+            echo "Retrying CUDA package installation in 10 seconds..."
+            sleep 10
+          done
 
       - name: Call `autoreconf -ivf`
         run: |
