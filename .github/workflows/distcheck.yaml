@@ -41,7 +41,7 @@ env:
   
   # APT package list for caching
   APT_CACHE_RESTORE_KEYS: |
-    apt-cache-${{ runner.os }}-${{ github.job }}
+    apt-cache-ubuntu-${{ github.job }}
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -199,7 +199,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /var/cache/apt/archives
-          key: apt-cache-${{ runner.os }}-distcheck-${{ hashFiles('**/workflows/distcheck.yaml') }}
+          key: apt-cache-ubuntu-distcheck-${{ hashFiles('**/workflows/distcheck.yaml') }}
           restore-keys: ${{ env.APT_CACHE_RESTORE_KEYS }}
 
       - name: Install Base Dependencies
@@ -216,9 +216,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /var/cache/apt/archives
-          key: cuda-apt-cache-distcheck-${{ runner.os }}-${{ hashFiles('**/workflows/distcheck.yaml') }}
+          key: cuda-apt-cache-distcheck-ubuntu-${{ hashFiles('**/workflows/distcheck.yaml') }}
           restore-keys: |
-            cuda-apt-cache-${{ runner.os }}-
+            cuda-apt-cache-ubuntu-
       
       - name: Install CUDA SDK
         if: matrix.sdk == 'cuda'
@@ -323,7 +323,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /var/cache/apt/archives
-          key: apt-cache-${{ runner.os }}-codechecker-${{ hashFiles('**/workflows/distcheck.yaml') }}
+          key: apt-cache-ubuntu-codechecker-${{ hashFiles('**/workflows/distcheck.yaml') }}
           restore-keys: ${{ env.APT_CACHE_RESTORE_KEYS }}
 
       - name: Install Base Dependencies
@@ -340,9 +340,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /var/cache/apt/archives
-          key: cuda-apt-cache-codechecker-${{ runner.os }}-${{ hashFiles('**/workflows/distcheck.yaml') }}
+          key: cuda-apt-cache-codechecker-ubuntu-${{ hashFiles('**/workflows/distcheck.yaml') }}
           restore-keys: |
-            cuda-apt-cache-${{ runner.os }}-
+            cuda-apt-cache-ubuntu-
       
       - name: Install CUDA SDK
         if: matrix.sdk == 'cuda'

@@ -9,7 +9,7 @@ on:
 env:
   # For caching APT packages
   APT_CACHE_RESTORE_KEYS: |
-    apt-cache-${{ runner.os }}-makedist
+    apt-cache-ubuntu-makedist
 
 jobs:
   amazonlinux:
@@ -39,9 +39,9 @@ jobs:
         id: yum-cache
         with:
           path: /var/cache/yum
-          key: yum-cache-${{ runner.os }}-${{ hashFiles('**/workflows/tag-makedist.yaml') }}
+          key: yum-cache-ubuntu-${{ hashFiles('**/workflows/tag-makedist.yaml') }}
           restore-keys: |
-            yum-cache-${{ runner.os }}-
+            yum-cache-ubuntu-
       
       - run: |
           # Configure YUM to keep cache
